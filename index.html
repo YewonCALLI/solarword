@@ -2,10 +2,121 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SolarWord</title>
+    <title>Word Similarity Finder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f0f0f0;
+        }
+        #chart {
+            width: 1000px;
+            height: 1000px;
+            background: yellow;
+            border-radius: 50%;
+            position: relative;
+        }
+        .word {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+        .similar-word {
+            color: red;
+            font-weight: bold;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        #quality {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
 </head>
 <body>
-    
+    <div class="input-section">
+        <input type="text" id="word-input" placeholder="Enter a word">
+        <button onclick="findSimilarWords()">Find Similar Words</button>
+    </div>
+    <div id="quality"></div>
+    <div id="chart"></div>
+    <script>
+        let globalData = [];
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // CSV 파일 읽기
+            Papa.parse('word-scoring-data.csv', {
+                download: true,
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    globalData = results.data.filter(d => d.word);
+                }
+            });
+        });
+
+        function findSimilarWords() {
+            const inputWord = document.getElementById('word-input').value.toLowerCase();
+            const wordData = globalData.find(d => d.word && d.word.toString().toLowerCase() === inputWord);
+
+            if (wordData) {
+                const vectors = globalData.map(d => [d['dog-cat'], d['utilitarian-romantic'], d['static-dynamic'], d['concrete-intangible'], d['satisfying-irritating'], d['hard-soft']]);
+                const wordVector = [wordData['dog-cat'], wordData['utilitarian-romantic'], wordData['static-dynamic'], wordData['concrete-intangible'], wordData['satisfying-irritating'], wordData['hard-soft']];
+
+                const similarities = vectors.map((vector, i) => ({
+                    word: globalData[i].word,
+                    similarity: cosineSimilarity(wordVector, vector)
+                }));
+
+                similarities.sort((a, b) => b.similarity - a.similarity);
+                const topSimilarWords = similarities.slice(1, 11); // 상위 10개의 유사 단어
+
+                visualizeData(topSimilarWords);
+            } else {
+                alert('Word not found in the dataset');
+            }
+        }
+
+        function cosineSimilarity(a, b) {
+            const dotProduct = a.reduce((sum, val, index) => sum + val * b[index], 0);
+            const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+            const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+            return dotProduct / (magnitudeA * magnitudeB);
+        }
+
+        function visualizeData(data) {
+            const chart = document.getElementById('chart');
+            chart.innerHTML = ''; // 기존 내용 삭제
+
+            const width = chart.clientWidth;
+            const height = chart.clientHeight;
+
+            data.forEach((d, index) => {
+                const angle = (2 * Math.PI * index) / data.length;
+                const radius = 400; // 중심 단어와의 거리
+                const x = width / 2 + radius * Math.cos(angle);
+                const y = height / 2 + radius * Math.sin(angle);
+
+                addWord(chart, d.word, x, y, 'similar-word');
+            });
+        }
+
+        function addWord(chart, word, x, y, className) {
+            const wordElement = document.createElement('div');
+            wordElement.classList.add('word', className);
+            wordElement.style.left = `${x}px`;
+            wordElement.style.top = `${y}px`;
+            wordElement.textContent = word;
+            chart.appendChild(wordElement);
+        }
+    </script>
 </body>
 </html>
