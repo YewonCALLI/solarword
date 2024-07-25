@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Word Similarity Finder</title>
+    <title>Word Similarity Rings</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Courier New', Courier, monospace;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -14,29 +14,66 @@
             margin: 0;
             background: #f0f0f0;
         }
-        #chart {
-            width: 1000px;
-            height: 1000px;
-            background: yellow;
-            border-radius: 50%;
-            position: relative;
-        }
-        .word {
-            position: absolute;
-            transform: translate(-50%, -50%);
-            white-space: nowrap;
-        }
-        .similar-word {
-            color: red;
-            font-weight: bold;
-        }
         .input-section {
+            position: absolute;
+            top: 30px;
             margin-bottom: 20px;
+            z-index: 2;
         }
-        #quality {
-            font-size: 20px;
-            font-weight: bold;
+        #center-word-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             margin-top: 20px;
+            z-index: 2;
+        }
+        #center-word-container .word-item {
+            background: none;
+            text-align: center;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+        .word-item {
+            background: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            width: fit-content;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin: 5px;
+        }
+        .word-item:hover {
+            background: #ddd;
+        }
+        .orbit-word {
+            position: absolute;
+            transition: transform 0.1s linear;
+        }
+        #user-sequence-container {
+            position: absolute;
+            margin-top: 20px;
+            width: 100%;
+            height: 100%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+        }
+        .arrow-path {
+            fill: none;
+            stroke: black;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        .ring {
+            position: relative;
+            width: 600px;
+            height: 600px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
@@ -46,13 +83,25 @@
         <input type="text" id="word-input" placeholder="Enter a word">
         <button onclick="findSimilarWords()">Find Similar Words</button>
     </div>
-    <div id="quality"></div>
-    <div id="chart"></div>
+    <div id="center-word-container"></div>
+    <div id="user-sequence-container">
+        <div id="user-ring" class="ring"></div>
+        <svg id="svg-container" width="1000" height="1000" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" />
+                </marker>
+            </defs>
+        </svg>
+    </div>
     <script>
         let globalData = [];
+        let words = [];
+        let centerWord = null;
+        let intervalId = null;
+        let userSequence = [];
 
         document.addEventListener("DOMContentLoaded", function() {
-            // CSV 파일 읽기
             Papa.parse('word-scoring-data.csv', {
                 download: true,
                 header: true,
@@ -63,8 +112,12 @@
             });
         });
 
-        function findSimilarWords() {
-            const inputWord = document.getElementById('word-input').value.toLowerCase();
+        function findSimilarWords(inputWord) {
+            if (!inputWord) {
+                inputWord = document.getElementById('word-input').value.toLowerCase();
+            } else {
+                inputWord = inputWord.toLowerCase();
+            }
             const wordData = globalData.find(d => d.word && d.word.toString().toLowerCase() === inputWord);
 
             if (wordData) {
@@ -77,12 +130,56 @@
                 }));
 
                 similarities.sort((a, b) => b.similarity - a.similarity);
-                const topSimilarWords = similarities.slice(1, 11); // 상위 10개의 유사 단어
+                const topSimilarWords = similarities.slice(1, 10);
 
-                visualizeData(topSimilarWords);
+                displayCenterWord(inputWord);
+                displayOrbitWords(topSimilarWords);
+                addToUserSequence(inputWord);
             } else {
                 alert('Word not found in the dataset');
             }
+        }
+
+        function displayCenterWord(word) {
+            const container = document.getElementById('center-word-container');
+            container.innerHTML = `<div class="word-item">${word}</div>`;
+            centerWord = word;
+        }
+
+        function displayOrbitWords(similarWords) {
+            const container = document.getElementById('center-word-container');
+            container.querySelectorAll('.orbit-word').forEach(el => el.remove());
+
+            words = similarWords.map((d, index) => {
+                const angle = (2 * Math.PI * index) / similarWords.length;
+                const radius = 190;
+                const x = radius * Math.cos(angle);
+                const y = radius * Math.sin(angle);
+
+                const wordEl = document.createElement('div');
+                wordEl.className = 'word-item orbit-word';
+                wordEl.style.position = 'absolute';
+                wordEl.style.left = '50%';
+                wordEl.style.top = '50%';
+                wordEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+                wordEl.textContent = d.word;
+                wordEl.onclick = () => findSimilarWords(d.word);
+                container.appendChild(wordEl);
+
+                return { element: wordEl, angle, radius };
+            });
+
+            if (intervalId) clearInterval(intervalId);
+            intervalId = setInterval(animateOrbitWords, 100);
+        }
+
+        function animateOrbitWords() {
+            words.forEach(word => {
+                word.angle += 0.01;
+                const x = word.radius * Math.cos(word.angle);
+                const y = word.radius * Math.sin(word.angle);
+                word.element.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+            });
         }
 
         function cosineSimilarity(a, b) {
@@ -92,31 +189,73 @@
             return dotProduct / (magnitudeA * magnitudeB);
         }
 
-        function visualizeData(data) {
-            const chart = document.getElementById('chart');
-            chart.innerHTML = ''; // 기존 내용 삭제
-
-            const width = chart.clientWidth;
-            const height = chart.clientHeight;
-
-            data.forEach((d, index) => {
-                const angle = (2 * Math.PI * index) / data.length;
-                const radius = 400; // 중심 단어와의 거리
-                const x = width / 2 + radius * Math.cos(angle);
-                const y = height / 2 + radius * Math.sin(angle);
-
-                addWord(chart, d.word, x, y, 'similar-word');
-            });
+        function addToUserSequence(word) {
+            userSequence.push(word);
+            displayUserSequence();
         }
 
-        function addWord(chart, word, x, y, className) {
-            const wordElement = document.createElement('div');
-            wordElement.classList.add('word', className);
-            wordElement.style.left = `${x}px`;
-            wordElement.style.top = `${y}px`;
-            wordElement.textContent = word;
-            chart.appendChild(wordElement);
+        function displayUserSequence() {
+    const container = document.getElementById('user-ring');
+    const svgContainer = document.getElementById('svg-container');
+    if (!container || !svgContainer) {
+        return;
+    }
+
+    container.innerHTML = '';
+    svgContainer.innerHTML = `
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" />
+            </marker>
+        </defs>
+    `;
+    
+    const radius = 300;
+    const angleIncrement = (2 * Math.PI) / 13;
+    userSequence.forEach((word, index) => {
+        const angle = -Math.PI / 2 + angleIncrement * index;
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+        const wordEl = document.createElement('div');
+        wordEl.className = 'word-item';
+        wordEl.style.position = 'absolute';
+        wordEl.style.left = `${300 + x}px`;
+        wordEl.style.top = `${300 + y}px`;
+        wordEl.textContent = word;
+        container.appendChild(wordEl);
+
+        if (index > 0) {
+            const prevAngle = -Math.PI / 2 + angleIncrement * (index - 1);
+            const prevX = radius * Math.cos(prevAngle);
+            const prevY = radius * Math.sin(prevAngle);
+
+            // Calculate control point
+            const controlX = (500 + prevX + 500 + x) / 2 + (prevY - y) * 0.3;
+            const controlY = (500 + prevY + 500 + y) / 2 + (x - prevX) * 0.3;
+
+            const curvePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            curvePath.setAttribute('d', `M${500 + prevX},${500 + prevY} Q${controlX},${controlY} ${500 + x},${500 + y}`);
+            curvePath.classList.add('arrow-path');
+            svgContainer.appendChild(curvePath);
+            if(index == 12){
+                const firstX = radius * Math.cos(-Math.PI / 2);
+                const firstY = radius * Math.sin(-Math.PI / 2);
+                const controlX = (500 + x + 500 + firstX) / 2 + (y - firstY) * 0.3;
+                const controlY = (500 + y + 500 + firstY) / 2 + (firstX - x) * 0.3;
+                const curvePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                curvePath.setAttribute('d', `M${500 + x},${500 + y} Q${controlX},${controlY} ${500 + firstX},${500 + firstY}`);
+                curvePath.classList.add('arrow-path');
+                svgContainer.appendChild(curvePath);
+            }
         }
+    });
+}
+
+
+
+       
+
+
     </script>
 </body>
 </html>

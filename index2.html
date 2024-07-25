@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Word Solar System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f0f0f0;
+        }
+        #chart {
+            width: 1000px;
+            height: 1000px;
+            background: yellow;
+            position: relative;
+        }
+        .word {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+        .central {
+            font-weight: bold;
+            color: black;
+        }
+        .satellite {
+            color: black;
+        }
+        .noise {
+            color: grey;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+</head>
+<body>
+    <div id="chart"></div>
+    <script>
+        // CSV 파일 경로 지정
+        const csvFilePath = 'word-scoring-data.csv';
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // CSV 파일 읽기
+            Papa.parse(csvFilePath, {
+                download: true,
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    const data = results.data;
+                    const sampledData = sampleData(data, 150);
+                    processData(sampledData);
+                }
+            });
+        });
+
+        function sampleData(data, sampleSize) {
+            const shuffled = data.sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, sampleSize);
+        }
+
+        function processData(data) {
+            const words = data.map(d => d.word);
+            const vectors = data.map(d => [d['dog-cat'], d['utilitarian-romantic'], d['static-dynamic'], d['concrete-intangible'], d['satisfying-irritating'], d['hard-soft']]);
+
+            const scaledVectors = standardizeData(vectors);
+
+            const clusters = performDBSCAN(scaledVectors, 0.7, 3);
+
+            const visualData = scaledVectors.map((vector, i) => ({
+                word: words[i],
+                x: vector[0],
+                y: vector[1],
+                cluster: clusters[i]
+            }));
+
+            visualizeData(visualData);
+        }
+
+        function standardizeData(vectors) {
+            const means = vectors[0].map((_, colIndex) => vectors.reduce((sum, row) => sum + row[colIndex], 0) / vectors.length);
+            const stdDevs = vectors[0].map((_, colIndex) => Math.sqrt(vectors.map(row => Math.pow(row[colIndex] - means[colIndex], 2)).reduce((sum, val) => sum + val, 0) / vectors.length));
+
+            return vectors.map(row => row.map((value, colIndex) => (value - means[colIndex]) / stdDevs[colIndex]));
+        }
+
+        function performDBSCAN(vectors, eps, minSamples) {
+            const clusters = Array(vectors.length).fill(-1);
+            let clusterId = 0;
+
+            for (let i = 0; i < vectors.length; i++) {
+                if (clusters[i] !== -1) continue;
+
+                const neighbors = regionQuery(vectors, i, eps);
+                if (neighbors.length < minSamples) {
+                    clusters[i] = -1;  // 노이즈
+                    continue;
+                }
+
+                clusters[i] = clusterId;
+                let k = 0;
+                while (k < neighbors.length) {
+                    const j = neighbors[k];
+                    if (clusters[j] === -1) {
+                        clusters[j] = clusterId;
+                    }
+                    if (clusters[j] !== undefined) {
+                        k++;
+                        continue;
+                    }
+
+                    clusters[j] = clusterId;
+                    const newNeighbors = regionQuery(vectors, j, eps);
+                    if (newNeighbors.length >= minSamples) {
+                        neighbors.push(...newNeighbors);
+                    }
+                    k++;
+                }
+                clusterId++;
+            }
+
+            return clusters;
+        }
+
+        function regionQuery(vectors, index, eps) {
+            const neighbors = [];
+            for (let i = 0; i < vectors.length; i++) {
+                if (euclideanDistance(vectors[index], vectors[i]) < eps) {
+                    neighbors.push(i);
+                }
+            }
+            return neighbors;
+        }
+
+        function euclideanDistance(a, b) {
+            return Math.sqrt(a.reduce((sum, val, index) => sum + Math.pow(val - b[index], 2), 0));
+        }
+
+        function visualizeData(data) {
+            const chart = document.getElementById('chart');
+            const width = chart.clientWidth;
+            const height = chart.clientHeight;
+
+            const clusters = Array.from(new Set(data.map(d => d.cluster)));
+
+            clusters.forEach((cluster, clusterIndex) => {
+                if (cluster !== -1) {
+                    const clusterData = data.filter(d => d.cluster === cluster);
+                    const centralWord = clusterData[0];
+                    const satellites = clusterData.slice(1);
+
+                    // 클러스터의 중심 위치 설정
+                    const clusterRadius = 300;
+                    const angle = (2 * Math.PI * clusterIndex) / clusters.length;
+                    const clusterCenterX = width / 2 + clusterRadius * Math.cos(angle);
+                    const clusterCenterY = height / 2 + clusterRadius * Math.sin(angle);
+
+                    // 중심 단어 추가
+                    addWord(chart, centralWord, clusterCenterX, clusterCenterY, 'central');
+
+                    // 위성 단어 추가 (중심 단어 주변에 원형으로 배치)
+                    const satelliteRadius = 100;  // 중심 단어와의 기본 거리
+                    const angleStep = (2 * Math.PI) / satellites.length;
+                    satellites.forEach((satellite, index) => {
+                        const satelliteAngle = index * angleStep;
+                        const x = clusterCenterX + satelliteRadius * Math.cos(satelliteAngle);
+                        const y = clusterCenterY + satelliteRadius * Math.sin(satelliteAngle);
+                        addWord(chart, satellite, x, y, 'satellite');
+                    });
+                }
+            });
+
+            // 클러스터에 속하지 않는 노이즈 단어들 표시
+            const noiseData = data.filter(d => d.cluster === -1);
+            const noiseCenterX = width / 2;
+            const noiseCenterY = height / 2;
+
+            // 노이즈 단어 추가 (중앙에 모아서 배치)
+            const noiseRadius = 400;  // 중앙과의 거리
+            const angleStep = (2 * Math.PI) / noiseData.length;
+            noiseData.forEach((noise, index) => {
+                const noiseAngle = index * angleStep;
+                const x = noiseCenterX + noiseRadius * Math.cos(noiseAngle);
+                const y = noiseCenterY + noiseRadius * Math.sin(noiseAngle);
+                addWord(chart, noise, x, y, 'noise');
+            });
+        }
+
+        function addWord(chart, wordData, x, y, className) {
+            const wordElement = document.createElement('div');
+            wordElement.classList.add('word', className);
+            wordElement.style.left = `${x}px`;
+            wordElement.style.top = `${y}px`;
+            wordElement.textContent = wordData.word;
+            chart.appendChild(wordElement);
+        }
+    </script>
+</body>
+</html>

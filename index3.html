@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Word Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f0f0f0;
+        }
+        #chart {
+            width: 100%;
+            height: 100%;
+            background: yellow;
+        }
+        .word {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+        .central {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .satellite {
+        }
+        .dot {
+            width: 5px;
+            height: 5px;
+            background: black;
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+        }
+        @keyframes orbit {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/karpathy/tsnejs/tsne.js"></script>
+</head>
+<body>
+    <div id="chart"></div>
+    <script>
+        const csvFilePath = 'word-scoring-data.csv';
+
+        document.addEventListener("DOMContentLoaded", function() {
+            Papa.parse(csvFilePath, {
+                download: true,
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    const data = results.data;
+                    const sampledData = sampleData(data, 10);
+                    processData(sampledData);
+                }
+            });
+        });
+
+        function sampleData(data, sampleSize) {
+            const shuffled = data.sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, sampleSize);
+        }
+
+        function processData(data) {
+            const words = data.map(d => d.word);
+            const vectors = data.map(d => [d['dog-cat'], d['utilitarian-romantic'], d['static-dynamic'], d['concrete-intangible'], d['satisfying-irritating'], d['hard-soft']]);
+
+            const tsne = new tsnejs.tSNE({ dim: 2, perplexity: 10 });
+            tsne.initDataRaw(vectors);
+            for (let i = 0; i < 100; i++) {
+                tsne.step();
+            }
+            const pos = tsne.getSolution();
+            const standardizedPos = standardizeData(pos);
+
+            const clusters = performKMeans(standardizedPos, 10);
+
+            const visualData = standardizedPos.map((vector, i) => ({
+                word: words[i],
+                x: vector[0],
+                y: vector[1],
+                cluster: clusters[i]
+            }));
+
+            visualizeData(visualData);
+        }
+
+        function standardizeData(vectors) {
+            const means = vectors[0].map((_, colIndex) => vectors.reduce((sum, row) => sum + row[colIndex], 0) / vectors.length);
+            const stdDevs = vectors[0].map((_, colIndex) => Math.sqrt(vectors.map(row => Math.pow(row[colIndex] - means[colIndex], 2)).reduce((sum, val) => sum + val, 0) / vectors.length));
+
+            return vectors.map(row => row.map((value, colIndex) => (value - means[colIndex]) / stdDevs[colIndex]));
+        }
+
+        function performKMeans(vectors, k) {
+            const centroids = vectors.slice(0, k);
+            let assignments = new Array(vectors.length);
+            let oldAssignments;
+
+            while (true) {
+                oldAssignments = [...assignments];
+
+                // Assign clusters
+                for (let i = 0; i < vectors.length; i++) {
+                    let minDist = Infinity;
+                    let minIndex = -1;
+                    for (let j = 0; j < centroids.length; j++) {
+                        const dist = euclideanDistance(vectors[i], centroids[j]);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            minIndex = j;
+                        }
+                    }
+                    assignments[i] = minIndex;
+                }
+
+                // Update centroids
+                const newCentroids = new Array(k).fill(null).map(() => new Array(vectors[0].length).fill(0));
+                const counts = new Array(k).fill(0);
+                for (let i = 0; i < vectors.length; i++) {
+                    const cluster = assignments[i];
+                    counts[cluster]++;
+                    for (let j = 0; j < vectors[i].length; j++) {
+                        newCentroids[cluster][j] += vectors[i][j];
+                    }
+                }
+                for (let j = 0; j < k; j++) {
+                    for (let l = 0; l < newCentroids[j].length; l++) {
+                        newCentroids[j][l] /= counts[j];
+                    }
+                }
+
+                centroids.length = 0;
+                centroids.push(...newCentroids);
+
+                // Check for convergence
+                if (assignments.every((val, index) => val === oldAssignments[index])) {
+                    break;
+                }
+            }
+
+            return assignments;
+        }
+
+        function euclideanDistance(a, b) {
+            return Math.sqrt(a.reduce((sum, val, index) => sum + Math.pow(val - b[index], 0), 0));
+        }
+
+        function visualizeData(data) {
+            const chart = document.getElementById('chart');
+            const width = chart.clientWidth;
+            const height = chart.clientHeight;
+
+            const clusters = Array.from(new Set(data.map(d => d.cluster)));
+
+            const colors = clusters.map((_, index) => {
+                return `hsl(${Math.random() * 360}, 100%, 70%)`;
+            });
+
+            clusters.forEach((cluster, clusterIndex) => {
+                const clusterData = data.filter(d => d.cluster === cluster);
+                const centralWord = clusterData[0];
+                const satellites = clusterData.slice(1);
+
+                const clusterCenterX = width / 2 + Math.random() * 400 - 200;
+                const clusterCenterY = height / 2 + Math.random() * 400 - 200;
+
+                addWord(chart, centralWord, clusterCenterX, clusterCenterY, 'central', colors[clusterIndex]);
+                addDot(chart, clusterCenterX, clusterCenterY, colors[clusterIndex]);
+
+                const satelliteRadius = 100;
+                const angleStep = (2 * Math.PI) / satellites.length;
+                satellites.forEach((satellite, index) => {
+                    const satelliteAngle = index * angleStep;
+                    const satelliteX = clusterCenterX + satelliteRadius * Math.cos(satelliteAngle);
+                    const satelliteY = clusterCenterY + satelliteRadius * Math.sin(satelliteAngle);
+                    addWord(chart, satellite, satelliteX, satelliteY, 'satellite', colors[clusterIndex]);
+                    addDot(chart, satelliteX, satelliteY, colors[clusterIndex]);
+
+                    animateSatellite(chart, satellite, clusterCenterX, clusterCenterY, satelliteX, satelliteY);
+                });
+            });
+        }
+
+        function addWord(chart, wordData, x, y, className, color) {
+            const wordElement = document.createElement('div');
+            wordElement.classList.add('word', className);
+            wordElement.style.left = `${x}px`;
+            wordElement.style.top = `${y}px`;
+            wordElement.textContent = wordData.word;
+            if (color) {
+                wordElement.style.color = color;
+            }
+            chart.appendChild(wordElement);
+            return wordElement;
+        }
+
+        function addDot(chart, x, y, color) {
+            const dotElement = document.createElement('div');
+            dotElement.classList.add('dot');
+            dotElement.style.left = `${x}px`;
+            dotElement.style.top = `${y}px`;
+            dotElement.style.background = color;
+            chart.appendChild(dotElement);
+        }
+
+        function animateSatellite(chart, wordData, centerX, centerY, x, y) {
+            const satelliteElement = document.createElement('div');
+            satelliteElement.classList.add('word', 'satellite');
+            satelliteElement.style.left = `${x}px`;
+            satelliteElement.style.top = `${y}px`;
+            satelliteElement.textContent = wordData.word;
+            satelliteElement.style.color = 'red';
+            chart.appendChild(satelliteElement);
+
+            const orbitElement = document.createElement('div');
+            orbitElement.style.position = 'absolute';
+            orbitElement.style.width = '0';
+            orbitElement.style.height = '0';
+            orbitElement.style.top = `${centerY}px`;
+            orbitElement.style.left = `${centerX}px`;
+            orbitElement.style.animation = `orbit ${10 + Math.random() * 5}s infinite linear`;
+            orbitElement.style.transformOrigin = `${x - centerX}px ${y - centerY}px`;
+            orbitElement.appendChild(satelliteElement);
+            chart.appendChild(orbitElement);
+        }
+    </script>
+</body>
+</html>
