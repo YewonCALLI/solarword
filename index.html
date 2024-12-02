@@ -23,9 +23,9 @@
     <meta name="theme-color" content="#ffffff">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Sixtyfour+Convergence:SCAN@62&display=swap');
+
         body {
-            font-family: "Roboto Condensed", sans-serif;
             display: flex;
             overflow: hidden;
             flex-direction: column;
@@ -33,7 +33,7 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background: #f0f0f0;
+            background: #fff;
         }
 
         .input-section {
@@ -52,7 +52,7 @@
         #center-word-container {
             position: absolute;
             top: 50%;
-            left: 50%;
+            left: 40%;
             transform: translate(-50%, -50%);
             margin-top: 20px;
             z-index: 2;
@@ -91,7 +91,7 @@
             width: 100%;
             height: 100%;
             top: 50%;
-            left: 50%;
+            left: 40%;
             transform: translate(-50%, -50%);
             z-index: 1;
         }
@@ -107,13 +107,12 @@
 
         #poem-display {
             position: fixed;
-            overflow-y:scroll;
             max-height: 80%;
             right: 30px;
             top: 50%;
             transform: translateY(-50%);
             padding: 30px;
-            background: #fff9f9;
+            background: #fff;
             border-radius: 15px;
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
             min-width: 200px;
@@ -196,6 +195,53 @@
         }
         #poem-content{
             overflow-y: scroll;
+            overflow-x: hidden;
+        }
+
+        .trigger-container{
+            font-family: "Sixtyfour Convergence", sans-serif;
+            font-optical-sizing: auto;
+            font-weight: 400;
+            font-style: normal;
+            font-variation-settings:
+                "BLED" 0,
+                "SCAN" 62,
+                "XELA" 0,
+                "YELA" 0;
+            position: absolute;
+            bottom:30px;
+            display: flex;
+            gap:30px;
+            z-index: 100;
+            cursor: pointer;
+        }
+
+        .trigger:hover{
+            font-size: larger;
+            transition: all 0.7s ease;
+        }
+
+        .trigger2:hover{
+            font-size: larger;
+            transition: all 0.7s ease;
+        }
+
+
+        .trigger2 a{
+            color: #000;
+            text-decoration: none;
+        }
+
+
+        .iframe-background {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            border: none;
         }
 
     </style>
@@ -224,6 +270,12 @@
         <div id="poem-content"></div>
         <div class="poem-description">Based on the Korean nursery rhyme:<br><a href="https://youtu.be/5zlYh8tgeeM?si=krRR88eQZPsimBgc">"The brown monkey's bottom is red..."</a></div>
     </div>
+    <div class="trigger-container">
+        <div class="trigger" onclick="showIframe()">Open Word Map</div>
+        <div class="trigger2"><a href="https://solarword.vercel.app/map.html">Go to see Word Map</a></div>
+    </div>
+    <iframe id="bgIframe" class="iframe-background" src=""></iframe>
+
 
     <script>
         let globalData = [];
@@ -233,6 +285,7 @@
         let userSequence = [];
         let userAdjectives = [];
         let baseRadius = 300;
+        let visible = false;
 
         document.addEventListener("DOMContentLoaded", function() {
             Papa.parse('word-scoring-data.csv', {
@@ -500,6 +553,20 @@ function updatePoemDisplay() {
                 }
             });
         }
+
+        function showIframe() {
+            const iframe = document.getElementById('bgIframe');
+            visible = !visible;
+            
+            if (visible) {
+                iframe.style.display = 'block';
+                iframe.src = 'https://solarword.vercel.app/map.html';
+            } else {
+                iframe.style.display = 'none';
+                iframe.src = '';
+            }
+        }
+
 
         
     </script>
