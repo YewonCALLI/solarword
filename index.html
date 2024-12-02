@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Word Similarity Rings</title>
+    <title>Word Chain Nursery Rhyme</title>
     <style>
         body {
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Courier New';
             display: flex;
+            overflow: hidden;
             flex-direction: column;
             justify-content: center;
             align-items: center;
@@ -14,12 +15,18 @@
             margin: 0;
             background: #f0f0f0;
         }
+
         .input-section {
             position: absolute;
             top: 30px;
             margin-bottom: 20px;
             z-index: 2;
+            background: #ffffff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
+
         #center-word-container {
             position: absolute;
             top: 50%;
@@ -28,6 +35,7 @@
             margin-top: 20px;
             z-index: 2;
         }
+
         #center-word-container .word-item {
             background: none;
             text-align: center;
@@ -35,25 +43,29 @@
             padding: 10px 20px;
             border-radius: 5px;
         }
+
         .word-item {
             background: none;
             padding: 5px 10px;
             border-radius: 5px;
+            font-size: 20px;
             width: fit-content;
             cursor: pointer;
             transition: background 0.3s;
             margin: 5px;
         }
+
         .word-item:hover {
             background: #ddd;
         }
+
         .orbit-word {
             position: absolute;
             transition: transform 0.1s linear;
         }
+
         #user-sequence-container {
             position: absolute;
-            margin-top: 20px;
             width: 100%;
             height: 100%;
             top: 50%;
@@ -61,12 +73,7 @@
             transform: translate(-50%, -50%);
             z-index: 1;
         }
-        .arrow-path {
-            fill: none;
-            stroke: black;
-            stroke-width: 2;
-            marker-end: url(#arrowhead);
-        }
+
         .ring {
             position: relative;
             width: 2000px;
@@ -75,16 +82,108 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
+
+        #poem-display {
+            position: fixed;
+            overflow-y:scroll;
+            max-height: 80%;
+            right: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 30px;
+            background: #fff9f9;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            min-width: 200px;
+            max-width: 400px;
+            z-index: 3;
+        }
+
+        .poem-title {
+            font-size: 24px;
+            color: #08f8a0;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .connection-line {
+            font-size: 20px;
+            margin: 12px 0;
+            line-height: 1.8;
+            color: #4a4a4a;
+            transition: all 0.3s ease;
+            white-space: pre-wrap;
+        }
+
+        .connection-line:hover {
+            color: #08f8a0;
+            transform: scale(1.05);
+        }
+
+        #word-input, #adjective-input {
+            font-family: 'Courier New';
+            font-size: 18px;
+            padding: 8px 15px;
+            border: 2px solid #08f8a0;
+            border-radius: 8px;
+            margin-right: 10px;
+        }
+
+        #word-input {
+            width: 200px;
+        }
+
+        #adjective-input {
+            width: 150px;
+        }
+
+        button {
+            font-family: 'Courier New';
+            font-size: 18px;
+            padding: 8px 20px;
+            background: #08f8a0;
+            border: none;
+            border-radius: 8px;
+            color: rgb(0, 0, 0);
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #08f8a0;
+        }
+
+        .poem-description {
+            font-size: 14px;
+            color: #888;
+            margin-top: 20px;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .arrow-path {
+            fill: none;
+            stroke: black;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        #poem-content{
+            overflow-y: scroll;
+        }
+
     </style>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
 </head>
 <body>
     <div class="input-section">
-        <input type="text" id="word-input" placeholder="Enter a word">
-        <button onclick="findSimilarWords()">Find Similar Words</button>
+        <input type="text" id="word-input" placeholder="Enter a noun">
+        <button onclick="findSimilarWords('noun')">Find Synonym</button>
+        <input type="text" id="adjective-input" placeholder="Enter an adjective">
+        <button onclick="findSimilarWords('adjective')">Enter Word</button>
     </div>
     <div id="center-word-container"></div>
-    <div id="user-sequence-container" style="transform-origin: center;">
+    <div id="user-sequence-container">
         <div id="user-ring" class="ring"></div>
         <svg id="svg-container" width="2000" height="2000" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
             <defs>
@@ -94,12 +193,19 @@
             </defs>
         </svg>
     </div>
+    <div id="poem-display">
+        <div class="poem-title">My Word Chain Rhyme</div>
+        <div id="poem-content"></div>
+        <div class="poem-description">Based on the Korean nursery rhyme:<br>"The brown monkey's bottom is red..."</div>
+    </div>
+
     <script>
         let globalData = [];
         let words = [];
         let centerWord = null;
         let intervalId = null;
         let userSequence = [];
+        let userAdjectives = [];
         let baseRadius = 300;
 
         document.addEventListener("DOMContentLoaded", function() {
@@ -113,39 +219,127 @@
             });
         });
 
-        function findSimilarWords(inputWord) {
-            if (!inputWord) {
-                inputWord = document.getElementById('word-input').value.toLowerCase();
-            } else {
-                inputWord = inputWord.toLowerCase();
-            }
-            const wordData = globalData.find(d => d.word && d.word.toString().toLowerCase() === inputWord);
-
-            if (wordData) {
-                const vectors = globalData.map(d => [d['dog-cat'], d['utilitarian-romantic'], d['static-dynamic'], d['concrete-intangible'], d['satisfying-irritating'], d['hard-soft']]);
-                const wordVector = [wordData['dog-cat'], wordData['utilitarian-romantic'], wordData['static-dynamic'], wordData['concrete-intangible'], wordData['satisfying-irritating'], wordData['hard-soft']];
-
-                const similarities = vectors.map((vector, i) => ({
-                    word: globalData[i].word,
-                    similarity: cosineSimilarity(wordVector, vector)
-                }));
-
-                similarities.sort((a, b) => b.similarity - a.similarity);
-                const topSimilarWords = similarities.slice(1, 10);
-
-                displayCenterWord(inputWord);
-                displayOrbitWords(topSimilarWords);
-                addToUserSequence(inputWord);
-            } else {
-                alert('Word not found in the dataset');
-            }
+        function findSimilarWords(inputType) {
+    let word;
+    if (inputType === 'noun') {
+        word = document.getElementById('word-input').value.toString().toLowerCase().trim();
+    } else if (inputType === 'adjective') {
+        word = document.getElementById('adjective-input').value.toString().toLowerCase().trim();
+    } else {
+        // 클릭으로 들어온 단어의 경우
+        word = inputType.toString().toLowerCase().trim();
+    }
+    
+    if (!word) {
+        alert('Please enter a word');
+        return;
+    }
+    
+    console.log('Searching for word:', word);
+    
+    const wordData = globalData.find(d => {
+        if (!d.word) return false;
+        const dataWord = d.word.toString().toLowerCase().trim();
+        const match = dataWord === word;
+        if (match) {
+            console.log('Found matching word:', dataWord);
         }
+        return match;
+    });
 
-        function displayCenterWord(word) {
-            const container = document.getElementById('center-word-container');
-            container.innerHTML = `<div class="word-item">${word}</div>`;
-            centerWord = word;
+    if (!wordData) {
+        if (inputType === 'noun') {
+            document.getElementById('word-input').value = '';
+        } else if (inputType === 'adjective') {
+            document.getElementById('adjective-input').value = '';
         }
+        alert(`"${word}" is not found in our dataset. Please try another word.`);
+        return;
+    }
+
+    // 단어를 찾은 경우 결과 출력
+    console.log('Found word data:', wordData);
+
+    const vectors = globalData.map(d => [
+        d['dog-cat'], 
+        d['utilitarian-romantic'], 
+        d['static-dynamic'],
+        d['concrete-intangible'], 
+        d['satisfying-irritating'], 
+        d['hard-soft']
+    ]);
+
+    const wordVector = [
+        wordData['dog-cat'],
+        wordData['utilitarian-romantic'],
+        wordData['static-dynamic'],
+        wordData['concrete-intangible'],
+        wordData['satisfying-irritating'],
+        wordData['hard-soft']
+    ];
+
+    const similarities = vectors.map((vector, i) => ({
+        word: globalData[i].word,
+        similarity: cosineSimilarity(wordVector, vector)
+    }));
+    
+    similarities.sort((a, b) => b.similarity - a.similarity);
+
+    const topSimilarWords = similarities
+        .filter(item => {
+            if (!item.word) return false;
+            const itemWord = item.word.toString().toLowerCase().trim();
+            return itemWord !== word;
+        })
+        .slice(0, 9);
+
+    console.log('Similar words found:', topSimilarWords); // 찾은 유사 단어들 출력
+
+    displayCenterWord(word);
+    displayOrbitWords(topSimilarWords);
+    addToUserSequence(word);
+    
+    if (inputType === 'noun') {
+        document.getElementById('word-input').value = '';
+    } else if (inputType === 'adjective') {
+        document.getElementById('adjective-input').value = '';
+    }
+}
+
+// CSV 파일 로드 시 데이터 확인
+document.addEventListener("DOMContentLoaded", function() {
+    Papa.parse('word-scoring-data.csv', {
+        download: true,
+        header: true,
+        dynamicTyping: true,
+        complete: function(results) {
+            globalData = results.data.filter(d => d.word);
+            console.log('Data loaded. Total words:', globalData.length);
+            console.log('Sample words:', globalData.slice(0, 10).map(d => d.word));
+        }
+    });
+});
+
+function updatePoemDisplay() {
+    const poemContainer = document.getElementById('poem-content');
+    let poemHtml = '';
+    
+    for (let i = 0; i < userSequence.length - 1; i++) {
+        const currentWord = userSequence[i];
+        const nextWord = userSequence[i + 1];
+        
+        if (i%2==0) {
+            // 마지막 줄
+            poemHtml += `<div class="connection-line">${currentWord} is ${nextWord}!</div>`;
+        } else {
+            // 중간 줄들
+            poemHtml += `<div class="connection-line">${currentWord} like ${nextWord},</div>`;
+        }
+    }
+    
+    poemContainer.innerHTML = poemHtml;
+}
+        let clickedWord = false;  // 클릭으로 선택했는지 추적
 
         function displayOrbitWords(similarWords) {
             const container = document.getElementById('center-word-container');
@@ -164,7 +358,11 @@
                 wordEl.style.top = '50%';
                 wordEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
                 wordEl.textContent = d.word;
-                wordEl.onclick = () => findSimilarWords(d.word);
+                wordEl.onclick = () => {
+                    clickedWord = true;
+                    console.log(d.word)
+                    findSimilarWords(d.word);
+                };
                 container.appendChild(wordEl);
 
                 return { element: wordEl, angle, radius };
@@ -174,6 +372,25 @@
             intervalId = setInterval(animateOrbitWords, 100);
         }
 
+        function addToUserSequence(word, adjective) {
+            userSequence.push(word);
+            userAdjectives.push(adjective);
+            document.getElementById('adjective-input').value = '';
+            document.getElementById('word-input').value = '';
+            clickedWord = false;
+            displayUserSequence();
+            updatePoemDisplay();
+        }
+
+
+        
+        function displayCenterWord(word) {
+            const container = document.getElementById('center-word-container');
+            container.innerHTML = `<div class="word-item" style="font-size: 32px">${word}</div>`;
+            centerWord = word;
+        }
+
+        
         function animateOrbitWords() {
             words.forEach(word => {
                 word.angle += 0.01;
@@ -190,18 +407,11 @@
             return dotProduct / (magnitudeA * magnitudeB);
         }
 
-        function addToUserSequence(word) {
-            userSequence.push(word);
-            displayUserSequence();
-        }
 
         function displayUserSequence() {
             const container = document.getElementById('user-ring');
             const svgContainer = document.getElementById('svg-container');
-            const userSequenceContainer = document.getElementById('user-sequence-container');
-            if (!container || !svgContainer) {
-                return;
-            }
+            if (!container || !svgContainer) return;
 
             container.innerHTML = '';
             svgContainer.innerHTML = `
@@ -215,14 +425,9 @@
             const numWords = userSequence.length;
             const numRings = Math.ceil(numWords / 13);
             let scale = 3/numRings;
+            if (numRings <= 1) scale = 1/numRings;
 
-            if( numRings <= 1) {
-                scale = 1/numRings
-            }
-
-
-
-            userSequenceContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
+            document.getElementById('user-sequence-container').style.transform = `translate(-50%, -50%) scale(${scale})`;
 
             userSequence.forEach((word, index) => {
                 const ringIndex = Math.floor(index / 13);
@@ -246,7 +451,6 @@
                     const prevX = prevRadius * Math.cos(prevAngle);
                     const prevY = prevRadius * Math.sin(prevAngle);
 
-                    // Calculate control point
                     const controlX = (1000 + prevX + 1000 + x) / 2 + (prevY - y) * 0.3;
                     const controlY = (1000 + prevY + 1000 + y) / 2 + (x - prevX) * 0.3;
 
@@ -270,6 +474,8 @@
                 }
             });
         }
+
+        
     </script>
 </body>
 </html>

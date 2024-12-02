@@ -14,10 +14,11 @@
             background: #f0f0f0;
         }
         #chart {
-            width: 1000px;
-            height: 1000px;
+            width: 100%;
+            height: 100%;
             background: yellow;
             position: relative;
+            overflow: hidden;
         }
         .word {
             position: absolute;
@@ -30,21 +31,48 @@
         }
         .satellite {
             color: black;
+            animation: orbit 5s linear infinite;
         }
         .noise {
             color: grey;
+            animation: shake 0.5s infinite;
+        }
+        @keyframes orbit {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg) translateX(50px) rotate(0deg);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg) translateX(50px) rotate(-360deg);
+            }
+        }
+        @keyframes shake {
+            0% { transform: translate(-50%, -50%) translateX(0); }
+            25% { transform: translate(-50%, -50%) translateX(-3px); }
+            50% { transform: translate(-50%, -50%) translateX(0); }
+            75% { transform: translate(-50%, -50%) translateX(3px); }
+            100% { transform: translate(-50%, -50%) translateX(0); }
+        }
+        #poem {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 90%;
+            text-align: center;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
 </head>
 <body>
     <div id="chart"></div>
+    <div id="poem"></div>
     <script>
-        // CSV 파일 경로 지정
         const csvFilePath = 'word-scoring-data.csv';
 
         document.addEventListener("DOMContentLoaded", function() {
-            // CSV 파일 읽기
             Papa.parse(csvFilePath, {
                 download: true,
                 header: true,
@@ -68,7 +96,7 @@
 
             const scaledVectors = standardizeData(vectors);
 
-            const clusters = performDBSCAN(scaledVectors, 0.7, 3);
+            const clusters = performDBSCAN(scaledVectors, 1.0, 2);
 
             const visualData = scaledVectors.map((vector, i) => ({
                 word: words[i],
@@ -78,6 +106,7 @@
             }));
 
             visualizeData(visualData);
+            generatePoem(visualData);
         }
 
         function standardizeData(vectors) {
@@ -96,7 +125,7 @@
 
                 const neighbors = regionQuery(vectors, i, eps);
                 if (neighbors.length < minSamples) {
-                    clusters[i] = -1;  // 노이즈
+                    clusters[i] = -1;
                     continue;
                 }
 
@@ -152,17 +181,14 @@
                     const centralWord = clusterData[0];
                     const satellites = clusterData.slice(1);
 
-                    // 클러스터의 중심 위치 설정
                     const clusterRadius = 300;
                     const angle = (2 * Math.PI * clusterIndex) / clusters.length;
                     const clusterCenterX = width / 2 + clusterRadius * Math.cos(angle);
                     const clusterCenterY = height / 2 + clusterRadius * Math.sin(angle);
 
-                    // 중심 단어 추가
                     addWord(chart, centralWord, clusterCenterX, clusterCenterY, 'central');
 
-                    // 위성 단어 추가 (중심 단어 주변에 원형으로 배치)
-                    const satelliteRadius = 100;  // 중심 단어와의 기본 거리
+                    const satelliteRadius = 100;
                     const angleStep = (2 * Math.PI) / satellites.length;
                     satellites.forEach((satellite, index) => {
                         const satelliteAngle = index * angleStep;
@@ -173,13 +199,11 @@
                 }
             });
 
-            // 클러스터에 속하지 않는 노이즈 단어들 표시
             const noiseData = data.filter(d => d.cluster === -1);
             const noiseCenterX = width / 2;
             const noiseCenterY = height / 2;
 
-            // 노이즈 단어 추가 (중앙에 모아서 배치)
-            const noiseRadius = 400;  // 중앙과의 거리
+            const noiseRadius = 400;
             const angleStep = (2 * Math.PI) / noiseData.length;
             noiseData.forEach((noise, index) => {
                 const noiseAngle = index * angleStep;
@@ -196,6 +220,28 @@
             wordElement.style.top = `${y}px`;
             wordElement.textContent = wordData.word;
             chart.appendChild(wordElement);
+        }
+
+        function generatePoem(data) {
+            const centralWords = data.filter(d => d.cluster !== -1 && d.word !== undefined);
+            const noiseWords = data.filter(d => d.cluster === -1 && d.word !== undefined);
+
+            const poemLines = [];
+
+            centralWords.forEach((word, index) => {
+                const satelliteWords = data.filter(d => d.cluster === word.cluster && d.word !== word.word);
+                if (satelliteWords.length > 0) {
+                    const satelliteWord = satelliteWords[Math.floor(Math.random() * satelliteWords.length)].word;
+                    poemLines.push(`${word.word} and ${satelliteWord}`);
+                }
+            });
+
+            noiseWords.forEach(word => {
+                poemLines.push(`${word.word} alone`);
+            });
+
+            const poemElement = document.getElementById('poem');
+            poemElement.innerHTML = poemLines.join('<br>');
         }
     </script>
 </body>
