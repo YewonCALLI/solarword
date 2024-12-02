@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap');
+        body {
+            font-family:"Roboto Condensed", sans-serif;
+            margin: 0;
+        }
+        #visualization {
+            background: white;
+            border:#000000 solid 1px;
+            padding: 20px;
+            margin: auto;
+            max-width: 800px;
+        }
+        .word {
+            position: absolute;
+            font-size: 10px;
+            transform: translate(-50%, -50%);
+            transition: all 0.2s;
+        }
+        .word:hover {
+            color: #2196F3;
+            font-weight: bold;
+        }
+        .word:hover::after {
+            content: attr(data-coordinates);
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 255, 0, 0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .quadrant-label {
+            position: absolute;
+            color: #000000;
+            font-size: 12px;
+        }
+        .axis-label {
+            position: absolute;
+            color: #333;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="visualization"></div>
+
+    <script>
+       const width = 800;
+        const height = 800;
+        const margin = 60;
+
+        function visualizeData(data) {
+            const container = document.getElementById('visualization');
+            container.style.width = width + 'px';
+            container.style.height = height + 'px';
+            container.style.position = 'relative';
+
+            // Add axis lines
+            const axisHTML = `
+                <div style="position: absolute; left: ${margin}px; top: ${height/2}px; width: ${width-2*margin}px; height: 1px; background: #ccc;"></div>
+                <div style="position: absolute; left: ${width/2}px; top: ${margin}px; width: 1px; height: ${height-2*margin}px; background: #ccc;"></div>
+            `;
+            container.innerHTML = axisHTML;
+
+            // Add axis labels
+            const labels = [
+                {text: "Concrete/Utilitarian ← → Abstract/Romantic", x: width/2, y: height-10},
+                {text: "Natural/Physical ← → Emotional/Social", x: -105, y: height/2, rotate: -90}
+            ];
+
+            labels.forEach(label => {
+                const div = document.createElement('div');
+                div.className = 'axis-label';
+                div.textContent = label.text;
+                div.style.left = label.x + 'px';
+                div.style.top = label.y + 'px';
+                if (label.rotate) {
+                    div.style.transform = `rotate(${label.rotate}deg)`;
+                }
+                container.appendChild(div);
+            });
+
+            // Add quadrant labels
+            const quadrants = [
+                {text: "Abstract & Social\n(ethereal, emotional)", x: 0.5, y: 1},
+                {text: "Concrete & Social\n(practical, interpersonal)", x: -1, y: 1},
+                {text: "Abstract & Natural\n(poetic, atmospheric)", x: 0.5, y: -1},
+                {text: "Concrete & Natural\n(physical, tangible)", x: -1, y: -1}
+            ];
+
+            quadrants.forEach(quad => {
+                const div = document.createElement('div');
+                div.className = 'quadrant-label';
+                div.textContent = quad.text;
+                const x = (quad.x + 1) * (width - 2*margin)/2 + margin;
+                const y = (-quad.y + 1) * (height - 2*margin)/2 + margin;
+                div.style.left = x + 'px';
+                div.style.top = y + 'px';
+                container.appendChild(div);
+            });
+
+            // Plot words
+            data.forEach(point => {
+                const div = document.createElement('div');
+                div.className = 'word';
+                div.textContent = point.word;
+                
+                // Transform coordinates to pixels
+                const x = (point.x + 1) * (width - 2*margin)/2 + margin;
+                const y = (-point.y + 1) * (height - 2*margin)/2 + margin;
+                
+                div.style.left = x + 'px';
+                div.style.top = y + 'px';
+                container.appendChild(div);
+            });
+
+            // Add hover effect
+            document.querySelectorAll('.word').forEach(word => {
+                word.addEventListener('mouseover', function(e) {
+                    const rect = this.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    
+                    const x = ((rect.left - containerRect.left - margin) / (width - 2*margin) * 2 - 1).toFixed(2);
+                    const y = (-(rect.top - containerRect.top - margin) / (height - 2*margin) * 2 + 1).toFixed(2);
+                    
+                    this.title = `${this.textContent} (${x}, ${y})`;
+                });
+            });
+        }
+
+
+        fetch('word_coordinates.json')
+        .then(response => response.json())
+        .then(data => {
+            const xValues = data.map(d => d.x);
+            const yValues = data.map(d => d.y);
+            const xMax = Math.max(...xValues);
+            const xMin = Math.min(...xValues);
+            const yMax = Math.max(...yValues);
+            const yMin = Math.min(...yValues);
+
+            const normalizedData = data.map(d => ({
+                word: d.word,
+                x: (2 * (d.x - xMin) / (xMax - xMin)) - 1,
+                y: (2 * (d.y - yMin) / (yMax - yMin)) - 1
+            }));
+
+            visualizeData(normalizedData);
+        });
+
+    </script>
+</body>
+</html>
