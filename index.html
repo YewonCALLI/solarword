@@ -503,7 +503,7 @@ function updatePoemDisplay() {
 
             const numWords = userSequence.length;
             const numRings = Math.ceil(numWords / 13);
-            let scale = 3/numRings;
+            let scale = 1.8/numRings;
             if (numRings <= 1) scale = 1/numRings;
 
             document.getElementById('user-sequence-container').style.transform = `translate(-50%, -50%) scale(${scale})`;
