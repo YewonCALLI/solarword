@@ -21,8 +21,11 @@
             transition: all 0.2s;
         }
         .word:hover {
-            color: #2196F3;
+            color: #ff0000;
             font-weight: bold;
+            font-size: 20px;
+            cursor: grab;
+            z-index: 100;
         }
         .word:hover::after {
             content: attr(data-coordinates);
